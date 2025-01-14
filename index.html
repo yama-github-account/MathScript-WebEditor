@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>MathScript Executor</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <h1>MathScript Executor</h1>
+    <textarea id="code" placeholder="Enter your MathScript code here..."></textarea>
+    <button onclick="executeCode()">Execute</button>
+    <pre id="result"></pre>
+  </div>
+
+  <script>
+    class MathScript {
+      constructor() {
+        this.variables = {};
+      }
+
+      parseBlock(block) {
+        const lines = block.split("\n");
+        for (const line of lines) {
+          if (line.trim()) {
+            this.parseLine(line.trim());
+          }
+        }
+      }
+
+      parseLine(line) {
+        line = line.trim();
+        if (line === "" || line.startsWith("#")) return;
+
+        if (line.startsWith("print(") && line.endsWith(")")) {
+          const expression = line.slice(6, -1);
+          const value = this.evaluateExpression(expression);
+          this.print(value);
+        } else if (line.includes("=")) {
+          const [variable, expression] = line.split("=").map((s) => s.trim());
+          const value = this.evaluateExpression(expression);
+          this.variables[variable] = value;
+        } else if (line.startsWith("if")) {
+          const conditionStart = line.indexOf("(") + 1;
+          const conditionEnd = line.indexOf(")");
+          const condition = line.slice(conditionStart, conditionEnd).trim();
+
+          const blockStart = line.indexOf("{") + 1;
+          const blockEnd = this.findBlockEnd(line, blockStart);
+          const block = line.slice(blockStart, blockEnd).trim();
+
+          const conditionResult = this.evaluateExpression(condition);
+          if (typeof conditionResult !== "boolean") {
+            throw new Error(`Invalid condition: ${condition}. Must evaluate to true or false.`);
+          }
+
+          if (conditionResult) {
+            this.parseBlock(block);
+          }
+        } else if (line.startsWith("else if")) {
+          const conditionStart = line.indexOf("(") + 1;
+          const conditionEnd = line.indexOf(")");
+          const condition = line.slice(conditionStart, conditionEnd).trim();
+
+          const blockStart = line.indexOf("{") + 1;
+          const blockEnd = this.findBlockEnd(line, blockStart);
+          const block = line.slice(blockStart, blockEnd).trim();
+
+          const conditionResult = this.evaluateExpression(condition);
+          if (typeof conditionResult !== "boolean") {
+            throw new Error(`Invalid condition: ${condition}. Must evaluate to true or false.`);
+          }
+
+          if (conditionResult) {
+            this.parseBlock(block);
+          }
+        } else if (line.startsWith("else")) {
+          const blockStart = line.indexOf("{") + 1;
+          const blockEnd = this.findBlockEnd(line, blockStart);
+          const block = line.slice(blockStart, blockEnd).trim();
+
+          this.parseBlock(block);
+        } else if (line.startsWith("while")) {
+          const conditionStart = line.indexOf("(") + 1;
+          const conditionEnd = line.indexOf(")");
+          const condition = line.slice(conditionStart, conditionEnd).trim();
+
+          const blockStart = line.indexOf("{") + 1;
+          const blockEnd = this.findBlockEnd(line, blockStart);
+          const block = line.slice(blockStart, blockEnd).trim();
+
+          let conditionResult = this.evaluateExpression(condition);
+          while (conditionResult) {
+            this.parseBlock(block);
+            conditionResult = this.evaluateExpression(condition);
+          }
+        } else {
+          throw new Error(`Invalid syntax: ${line}`);
+        }
+      }
+
+      findBlockEnd(line, blockStart) {
+        let openBrackets = 1;
+        let position = blockStart;
+        while (openBrackets > 0 && position < line.length) {
+          if (line[position] === "{") {
+            openBrackets++;
+          } else if (line[position] === "}") {
+            openBrackets--;
+          }
+          position++;
+        }
+        return position - 1;
+      }
+
+      evaluateExpression(expression) {
+        expression = expression.replace(/\btrue\b/g, "true").replace(/\bfalse\b/g, "false");
+
+        const replacedExpression = expression.replace(/[a-zA-Z_][a-zA-Z0-9_]*/g, (match) => {
+          if (this.variables.hasOwnProperty(match)) {
+            return JSON.stringify(this.variables[match]);
+          }
+          return match;
+        });
+
+        try {
+          const result = Function(`"use strict"; return (${replacedExpression});`)();
+          return result;
+        } catch (err) {
+          throw new Error(`Invalid expression: ${expression}`);
+        }
+      }
+
+      print(value) {
+        const resultElement = document.getElementById("result");
+        resultElement.textContent += value + "\n";
+      }
+
+      execute(code) {
+        const lines = code.split("\n");
+
+        let isIf = false;
+        let isElseIf = false;
+        let isElse = false;
+
+        let blockExecuting = false;
+
+        for (const line of lines) {
+          try {
+            const trimmedLine = line.trim();
+
+            if (trimmedLine.startsWith("if") && !isIf) {
+              isIf = true;
+              this.parseLine(trimmedLine);
+              blockExecuting = true;
+            } else if (trimmedLine.startsWith("else if") && !isElseIf && blockExecuting) {
+              isElseIf = true;
+              this.parseLine(trimmedLine);
+            } else if (trimmedLine.startsWith("else") && !isElse && blockExecuting) {
+              isElse = true;
+              this.parseLine(trimmedLine);
+            } else if (trimmedLine.startsWith("while") && blockExecuting) {
+              this.parseLine(trimmedLine);
+            } else {
+              this.parseLine(trimmedLine);
+            }
+          } catch (e) {
+            console.error(`Error in line: "${line}"`);
+            console.error(e.message);
+          }
+        }
+      }
+    }
+
+    function executeCode() {
+      const code = document.getElementById("code").value;
+      const mathScript = new MathScript();
+      document.getElementById("result").textContent = ""; // 結果をクリア
+      try {
+        mathScript.execute(code);
+      } catch (e) {
+        console.error("Error:", e.message);
+      }
+    }
+  </script>
+</body>
+</html>
